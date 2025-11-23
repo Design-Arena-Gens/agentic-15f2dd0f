@@ -1,0 +1,104 @@
+// Prisma schema for crowdtesting platform (SQLite compatible)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  email          String   @unique
+  name           String
+  role           String   @default("TESTER") // TESTER | CLIENT | ADMIN
+  hashedPassword String
+  bio            String?
+  payoutInfo     String?
+
+  // Relations
+  projects     Project[]       @relation("ClientProjects")
+  applications Application[]
+  reports      BugReport[]     @relation("ReporterReports")
+  payouts      Payout[]
+}
+
+model Project {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  title       String
+  description String
+
+  // client owner
+  client   User   @relation("ClientProjects", fields: [clientId], references: [id])
+  clientId String
+
+  cycles   TestCycle[]
+}
+
+model TestCycle {
+  id            String       @id @default(cuid())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  title         String
+  description   String
+  status        String       @default("DRAFT") // DRAFT | OPEN | IN_PROGRESS | COMPLETED
+  startAt       DateTime?
+  endAt         DateTime?
+  rewardPerBug  Int          @default(0) // cents
+  maxTesters    Int          @default(50)
+
+  project   Project @relation(fields: [projectId], references: [id])
+  projectId String
+
+  applications Application[]
+  reports      BugReport[]
+}
+
+model Application {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  status    String   @default("APPLIED") // APPLIED | ACCEPTED | REJECTED
+
+  tester   User      @relation(fields: [testerId], references: [id])
+  testerId String
+
+  cycle   TestCycle @relation(fields: [cycleId], references: [id])
+  cycleId String
+
+  @@unique([testerId, cycleId])
+}
+
+model BugReport {
+  id             String     @id @default(cuid())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  title          String
+  description    String
+  steps          String
+  severity       String     @default("LOW")       // LOW | MEDIUM | HIGH | CRITICAL
+  status         String     @default("SUBMITTED")  // SUBMITTED | APPROVED | REJECTED
+  screenshotUrls String?    // JSON stringified array
+  rewardCents    Int        @default(0)
+
+  reporter   User      @relation("ReporterReports", fields: [reporterId], references: [id])
+  reporterId String
+
+  cycle   TestCycle @relation(fields: [cycleId], references: [id])
+  cycleId String
+}
+
+model Payout {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  amountCents Int
+  status      String   @default("PENDING") // PENDING | PAID | FAILED
+
+  tester   User   @relation(fields: [testerId], references: [id])
+  testerId String
+}
